@@ -1,80 +1,89 @@
-from fastapi import FastAPI , Response , status , HTTPException , Depends
+from fastapi import FastAPI , Response , status , HTTPException 
 from fastapi.params import Body
 from pydantic import BaseModel
 from typing import Optional
-from random import randrange 
-import psycopg2
-from psycopg2.extras import DictCursor
+from random import randrange
 import time
-from sqlalchemy.orm import Session
-from .Models import models   
-from .database import engine, SessionLocal
-
-
-models.Base.metadata.create_all(bind=engine)
-
-
 
 app = FastAPI()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db    
-    finally:
-        db.close()
-
 
 class post(BaseModel):
     title: str
     content: str
-    published : bool = True 
-
-while True:
-
-
-    try:
-        conn =psycopg2.connect(host='localhost', database='Fastapi', user='postgres', password='9637311178', cursor_factory=DictCursor)
-        cursor = conn.cursor()
-        print("Database connection was successfull")
-        break
-    except Exception as error: 
-        print("coneecting to data base failed")
-        print("Error: ", error)
-        time.sleep(2)
-
+    published : bool = True
+    rating: Optional[int] = None
 
 my_posts = [{"title": "title of post 1", "content": "content of post 1", "id": 1}, 
             {"title":"favorite food", "content": "I like pizza", "id": 2}]
 
-
-
-@app.get("/")
-def home():
-    return {"Welcome to my fast API function"}
-
-@app.get("/")
-def test_posts(db: Session = Depends(get_db)):
-    return {"status":"success"}
-
+def find_post(id):
+    for p in my_posts:
+        if p['id'] == id:
+            return p
+        
+def find_index_post(id):
+    for i, p in enumerate(my_posts):
+        if p['id'] == id:
+            return i 
 
 @app.get("/posts")
 def get_posts():
-    posts = cursor.execute("""SELECT * FROM posts """)
-    print(posts)
-    return {"Data": "my_posts"}
+    return {"data": my_posts}
+
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_posts(post: post):
+    post_dict = post.dict()
+    post_dict['id'] = randrange(0,1000000)
+    my_posts.append(post_dict)    
+    return {"data": post_dict}
+
+@app.get("/posts/latest")
+def get_latest_post():
+    post = my_posts[len(my_posts)-1]
+    return {"details": post}
+
+@app.get("/posts/{id}")
+def get_posts(id: int):
+    post = find_post(id)
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"post with id: {id} was not found")
+    return {"post_details": post}
+
+@app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int):
+    index = find_index_post(id)
+
+    if index == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"post with id:{id} does not exist")
+       
+    
+
+    my_posts.pop(index)
+
+    return { "message": 'post successfully deleted'}
+
+@app.put("/posts/{id}")
+def update_post(id: int, post: post):
+
+    index = find_index_post(id)
+
+    if index == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"post with id:{id} does not exist")
+    
+    post_dict = post.dict()
+    post_dict['id'] = id
+    my_posts[index] - post_dict
+    return {"data": post_dict}
 
 
-@app.post("/createposts")
-def create_posts(payLoad: dict = Body(...)):
-    print(payLoad)
-    return {"new_post": f"title {payLoad['title']} content: {payLoad['content']}"}
 
 
 
-@app.post("/myposts")
-def create_posts(new_post:post):
-    print(new_post.title)
-    return {"Data": "new post"}
+
+
+
+
+ 
 
 
